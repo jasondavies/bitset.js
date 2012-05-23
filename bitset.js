@@ -51,12 +51,12 @@ BitSet.prototype.set = function(i) {
       this.rlw.setRunningLength(this.rlw.getRunningLength() - 1);
     }
   } else {
-    this.buffer[this.actualsizeinwords - 1] |= 1 << bittoflip;
+    var a = this.actualsizeinwords - 1;
+    this.buffer[a] |= 1 << bittoflip;
     // check if we just completed a stream of 1s
-    if (this.buffer[this.actualsizeinwords - 1] == ~0) {
+    if (this.buffer[a] == ~0) {
       // we remove the last dirty word
-      this.buffer[this.actualsizeinwords - 1] = 0;
-      --this.actualsizeinwords;
+      this.buffer[this.actualsizeinwords = a] = 0;
       this.rlw.setNumberOfLiteralWords(this.rlw.getNumberOfLiteralWords() - 1);
       // next we add one clean word
       addEmptyWord(true);
