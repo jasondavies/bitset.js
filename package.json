@@ -1,0 +1,26 @@
+{
+  "name": "bitset",
+  "version": "0.0.1",
+  "description": "Bit vectors for JavaScript.",
+  "keywords": [
+    "radix sort",
+    "floating point"
+  ],
+  "homepage": "https://github.com/jasondavies/bitset.js",
+  "author": {
+    "name": "Jason Davies",
+    "url": "http://www.jasondavies.com/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/jasondavies/bitset.js.git"
+  },
+  "main": "bitset.js",
+  "devDependencies": {
+    "vows": "0.6.x",
+    "uglify-js": "1.2.x"
+  },
+  "scripts": {
+    "test": "./node_modules/vows/bin/vows"
+  }
+}
