@@ -111,7 +111,7 @@ function andNot(a, container) {
   var i = new Iterator(a.buffer, a.actualsizeinwords);
   var j = new Iterator(this.buffer, this.actualsizeinwords);
   if (!(i.hasNext() && j.hasNext())) {// this never happens...
-    container.setSizeInBits(sizeInBits());
+    container.setSizeInBits(this.sizeinbits);
   }
   // at this point, this is safe:
   var rlwi = new BufferedRLW(i.next());
