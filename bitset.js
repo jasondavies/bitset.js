@@ -24,7 +24,6 @@ var notrunninglengthplusrunningbit = ~runninglengthplusrunningbit;
 
 function BitSet(n) {
   if (!arguments.length) n = 1;
-  // TODO use NPOT
   this.buffer = intArray(n);
   this.rlw = new RLW(this.buffer, 0);
   this.actualsizeinwords = 1;
@@ -100,14 +99,21 @@ BitSet.prototype.addStreamOfEmptyWords = function(v, number) {
   return wordsadded;
 };
 
-BitSet.prototype.andNot = function(a) {
-  var container = new BitSet;
-  reserve.call(container, Math.max(this.actualsizeinwords, a.actualsizeinwords));
-  andNot.call(this, a, container);
-  return container;
+BitSet.prototype.or = operation(function(a, b) { return a | b; });
+BitSet.prototype.xor = operation(function(a, b) { return a ^ b; });
+BitSet.prototype.and = operation(function(a, b) { return a & b; });
+BitSet.prototype.andNot = operation(function(a, b) { return a & ~b; });
+
+function operation(op) {
+  return function(a) {
+    var container = new BitSet;
+    reserve.call(container, Math.max(this.actualsizeinwords, a.actualsizeinwords));
+    operation0.call(this, a, container, op);
+    return container;
+  };
 };
 
-function andNot(a, container) {
+function operation0(a, container, op) {
   var i = new Iterator(a.buffer, a.actualsizeinwords);
   var j = new Iterator(this.buffer, this.actualsizeinwords);
   if (!(i.hasNext() && j.hasNext())) {// this never happens...
@@ -115,7 +121,7 @@ function andNot(a, container) {
   }
   // at this point, this is safe:
   var rlwi = new BufferedRLW(i.next());
-  rlwi.RunningBit = !rlwi.RunningBit;
+  rlwi.RunningBit = op(1, rlwi.RunningBit);
   var rlwj = new BufferedRLW(j.next());
   while (true) {
     var i_is_prey = rlwi.size() < rlwj.size();
@@ -130,9 +136,10 @@ function andNot(a, container) {
       // we have a stream of 1x11
       var predatorrl = predator.RunningLength;
       var preyrl = prey.RunningLength;
-      var tobediscarded = (predatorrl >= preyrl) ? preyrl : predatorrl;
+      var tobediscarded = predatorrl >= preyrl ? preyrl : predatorrl;
       container.addStreamOfEmptyWords(predator.RunningBit, tobediscarded);
       var dw_predator = predator.dirtywordoffset + (i_is_prey ? j.dirtyWords() : i.dirtyWords());
+      // TODO check
       if (i_is_prey) container.addStreamOfDirtyWords(j.buffer(), dw_predator, preyrl - tobediscarded);
       else container.addStreamOfNegatedDirtyWords(i.buffer(), dw_predator, preyrl - tobediscarded);
       predator.discardFirstWords(preyrl);
@@ -142,7 +149,7 @@ function andNot(a, container) {
     if (predatorrl > 0) {
       if (predator.getRunningBit() == false) {
         var nbre_dirty_prey = prey.NumberOfLiteralWords;
-        var tobediscarded = (predatorrl >= nbre_dirty_prey) ? nbre_dirty_prey : predatorrl;
+        var tobediscarded = Math.min(nbre_dirty_prey, predatorrl);
         predator.discardFirstWords(tobediscarded);
         prey.discardFirstWords(tobediscarded);
         container.addStreamOfEmptyWords(false, tobediscarded);
@@ -150,6 +157,7 @@ function andNot(a, container) {
         var nbre_dirty_prey = prey.NumberOfLiteralWords;
         var dw_prey = prey.dirtywordoffset + (i_is_prey ? i.dirtyWords() : j.dirtyWords());
         var tobediscarded = (predatorrl >= nbre_dirty_prey) ? nbre_dirty_prey : predatorrl;
+        // TODO check
         if (i_is_prey) container.addStreamOfNegatedDirtyWords(i.buffer(), dw_prey, tobediscarded);
         else container.addStreamOfDirtyWords(j.buffer(), dw_prey, tobediscarded);
         predator.discardFirstWords(tobediscarded);
@@ -159,13 +167,21 @@ function andNot(a, container) {
     // all that is left to do now is to AND the dirty words
     var nbre_dirty_prey = prey.NumberOfLiteralWords;
     if (nbre_dirty_prey > 0) {
+      var i0 = j,
+          j0 = i,
+          ip = prey,
+          jp = predator;
+      if (i_is_prey) {
+        i0 = i;
+        j0 = j;
+        ip = predator;
+        jp = prey;
+      }
       for (var k = 0; k < nbre_dirty_prey; ++k) {
-        if (i_is_prey) container.add((~i.buffer()[prey.dirtywordoffset + i.dirtyWords() + k])
-            & j.buffer()[predator.dirtywordoffset + j.dirtyWords() + k]);
-        else
-          container.add((~i.rlw.array[predator.dirtywordoffset
-            + i.dirtyWords() + k])
-            & j.rlw.array[prey.dirtywordoffset + j.dirtyWords() + k]);
+        container.add(op(
+          i0.rlw.array[ip.dirtywordoffset + i0.dirtyWords() + k],
+          j0.rlw.array[jp.dirtywordoffset + j0.dirtyWords() + k]
+        ));
       }
       predator.discardFirstWords(nbre_dirty_prey);
     }
@@ -175,7 +191,7 @@ function andNot(a, container) {
         break;
       }
       rlwi.reset(i.next());
-      rlwi.setRunningBit(!rlwi.getRunningBit());
+      rlwi.setRunningBit(op(1, rlwi.getRunningBit()));
     } else {
       if (!j.hasNext()) {
         rlwj = null;
@@ -324,12 +340,6 @@ BitSet.prototype.read = function(f) {
     }
     f(answer, count++);
   }
-};
-
-BitSet.prototype.and = function() {
-};
-
-BitSet.prototype.or = function() {
 };
 
 function Iterator(buffer, size) {

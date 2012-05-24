@@ -22,6 +22,60 @@ suite.addBatch({
       });
       assert.equal(count, data.length);
     },
+    "or": function(b) {
+      var a = new BitSet;
+      a.set(1);
+      a.set(2);
+      a.set(3);
+      var b = new BitSet;
+      b.set(3);
+      b.set(4);
+      b.set(5);
+      var c = a.or(b);
+      var expected = [1, 2, 3, 4, 5];
+      var count = 0;
+      c.read(function(d, i) {
+        assert.equal(d, expected[i]);
+        count++;
+      });
+      assert.equal(count, expected.length);
+    },
+    "xor": function(b) {
+      var a = new BitSet;
+      a.set(1);
+      a.set(2);
+      a.set(3);
+      var b = new BitSet;
+      b.set(3);
+      b.set(4);
+      b.set(5);
+      var c = a.xor(b);
+      var expected = [1, 2, 4, 5];
+      var count = 0;
+      c.read(function(d, i) {
+        assert.equal(d, expected[i]);
+        count++;
+      });
+      assert.equal(count, expected.length);
+    },
+    "and": function(b) {
+      var a = new BitSet;
+      a.set(1);
+      a.set(2);
+      a.set(3);
+      var b = new BitSet;
+      b.set(3);
+      b.set(4);
+      b.set(5);
+      var c = a.and(b);
+      var expected = [3];
+      var count = 0;
+      c.read(function(d, i) {
+        assert.equal(d, expected[i]);
+        count++;
+      });
+      assert.equal(count, expected.length);
+    },
     "andNot": function(b) {
       var a = new BitSet;
       a.set(1);
