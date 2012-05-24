@@ -8,10 +8,10 @@ var suite = vows.describe("bitset");
 suite.addBatch({
   "bitset": {
     topic: function() {
-      return new BitSet(100);
+      return new BitSet;
     },
     "simple": function(b) {
-      var data = [2, 20, 99, 100];
+      var data = [2, 200, 299, 300, 1 << 16];
       data.forEach(function(d) {
         b.set(d);
       });
@@ -26,3 +26,9 @@ suite.addBatch({
 });
 
 suite.export(module);
+
+function range(n) {
+  var a = [], i = -1;
+  while (++i < n) a[i] = i;
+  return a;
+}

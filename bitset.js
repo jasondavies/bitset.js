@@ -92,6 +92,34 @@ BitSet.prototype.addStreamOfEmptyWords = function(v, number) {
   return wordsadded;
 };
 
+BitSet.prototype.toString = function() {
+  return bitsetString.call(this);
+};
+
+BitSet.prototype.toDebugString = function() {
+  return bitsetString.call(this, function(i, localrlw) {
+    var s = [];
+    for (var j = 0; j < localrlw.getNumberOfLiteralWords(); ++j) {
+      s.push("\t", i.rlw.array[i.dirtyWords() + j], "\n");
+    }
+    return s.join("");
+  });
+};
+
+function bitsetString(callback) {
+  var s = "BitSet, size in bits = " + this.sizeinbits +
+      " size in words = " + this.actualsizeinwords + "\n";
+  var i = new Iterator(this.buffer, this.actualsizeinwords);
+  while (i.hasNext()) {
+    var localrlw = i.next();
+    s += localrlw.getRunningLength() +
+        (localrlw.getRunningBit() ? "1x11" : "0x00") + "\n" +
+        localrlw.getNumberOfLiteralWords() + " dirties\n";
+    if (callback) s += callback(i, localrlw);
+  }
+  return s;
+}
+
 function push_back(bitset, data) {
   if (bitset.actualsizeinwords == bitset.buffer.length) {
     var oldbuffer = bitset.buffer;
