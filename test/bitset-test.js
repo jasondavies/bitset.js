@@ -21,6 +21,24 @@ suite.addBatch({
         count++;
       });
       assert.equal(count, data.length);
+    },
+    "andNot": function(b) {
+      var a = new BitSet;
+      a.set(1);
+      a.set(2);
+      a.set(3);
+      var b = new BitSet;
+      b.set(3);
+      b.set(4);
+      b.set(5);
+      var c = a.andNot(b);
+      var expected = [1, 2];
+      var count = 0;
+      c.read(function(d, i) {
+        assert.equal(d, expected[i]);
+        count++;
+      });
+      assert.equal(count, expected.length);
     }
   }
 });
