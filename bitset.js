@@ -58,7 +58,7 @@ BitSet.prototype.set = function(i) {
       this.buffer[this.actualsizeinwords = a] = 0;
       this.rlw.setNumberOfLiteralWords(this.rlw.getNumberOfLiteralWords() - 1);
       // next we add one clean word
-      addEmptyWord(true);
+      addEmptyWord.call(this, true);
     }
   }
   this.sizeinbits = i + 1;
@@ -68,8 +68,8 @@ BitSet.prototype.set = function(i) {
 BitSet.prototype.add = function(d, significantBits) {
   if (arguments.length < 2) significantBits = WORDINBITS;
   this.sizeinbits += significantBits;
-  if (d == 0) return addEmptyWord(false);
-  if (d == ~0) return addEmptyWord(true);
+  if (d == 0) return addEmptyWord.call(this, false);
+  if (d == ~0) return addEmptyWord.call(this, true);
   return addLiteralWord(this, d);
 };
 
@@ -99,6 +99,24 @@ BitSet.prototype.addStreamOfEmptyWords = function(v, number) {
   return wordsadded;
 };
 
+BitSet.prototype.addStreamOfDirtyWords = function(data, start, number, negate) {
+  if (number == 0) return 0;
+  var NumberOfLiteralWords = this.rlw.getNumberOfLiteralWords();
+  var whatwecanadd = number < largestliteralcount - NumberOfLiteralWords ? number : largestliteralcount - NumberOfLiteralWords;
+  this.rlw.setNumberOfLiteralWords(NumberOfLiteralWords + whatwecanadd);
+  var leftovernumber = number - whatwecanadd;
+  push_back_many.call(this, data, start, whatwecanadd, negate);
+  this.sizeinbits += whatwecanadd << 5;
+  var wordsadded = whatwecanadd;
+  if (leftovernumber > 0) {
+    push_back(this, 0);
+    this.rlw.position = this.actualsizeinwords - 1;
+    ++wordsadded;
+    wordsadded += this.addStreamOfDirtyWords(data, start + whatwecanadd, leftovernumber);
+  }
+  return wordsadded;
+};
+
 BitSet.prototype.or = operation(function(a, b) { return a | b; });
 BitSet.prototype.xor = operation(function(a, b) { return a ^ b; });
 BitSet.prototype.and = operation(function(a, b) { return a & b; });
@@ -114,6 +132,8 @@ function operation(op) {
 };
 
 function operation0(a, container, op) {
+  // hack to detect andNot
+  var andnot = op(1, 0) && !op(1, 1) && !op(0, 1) && !op(0, 0);
   var i = new Iterator(a.buffer, a.actualsizeinwords);
   var j = new Iterator(this.buffer, this.actualsizeinwords);
   if (!(i.hasNext() && j.hasNext())) {// this never happens...
@@ -121,66 +141,58 @@ function operation0(a, container, op) {
   }
   // at this point, this is safe:
   var rlwi = new BufferedRLW(i.next());
-  rlwi.RunningBit = op(1, rlwi.RunningBit);
+  if (andnot) rlwi.RunningBit = !rlwi.RunningBit;
   var rlwj = new BufferedRLW(j.next());
   while (true) {
     var i_is_prey = rlwi.size() < rlwj.size();
     var prey = i_is_prey ? rlwi : rlwj;
     var predator = i_is_prey ? rlwj : rlwi;
 
-    if (prey.RunningBit == false) {
-      container.addStreamOfEmptyWords(false, prey.RunningLength);
-      predator.discardFirstWords(prey.RunningLength);
-      prey.RunningLength = 0;
-    } else {
+    if (andnot ? prey.RunningBit : op(0, prey.RunningBit, 0) ^ op(1, prey.RunningBit, 1)) { // | op(prey.RunningBit, 1)) {
       // we have a stream of 1x11
       var predatorrl = predator.RunningLength;
       var preyrl = prey.RunningLength;
       var tobediscarded = predatorrl >= preyrl ? preyrl : predatorrl;
       container.addStreamOfEmptyWords(predator.RunningBit, tobediscarded);
       var dw_predator = predator.dirtywordoffset + (i_is_prey ? j.dirtyWords() : i.dirtyWords());
-      // TODO check
-      if (i_is_prey) container.addStreamOfDirtyWords(j.buffer(), dw_predator, preyrl - tobediscarded);
-      else container.addStreamOfNegatedDirtyWords(i.buffer(), dw_predator, preyrl - tobediscarded);
+      var data = i_is_prey ? j.rlw.array : i.rlw.array;
+      container.addStreamOfDirtyWords(data, dw_predator, preyrl - tobediscarded, andnot && !i_is_prey);
       predator.discardFirstWords(preyrl);
-      prey.RunningLength = 0;
+    } else {
+      container.addStreamOfEmptyWords(prey.RunningBit, prey.RunningLength);
+      predator.discardFirstWords(prey.RunningLength);
     }
+    prey.RunningLength = 0;
+
     var predatorrl = predator.RunningLength;
     if (predatorrl > 0) {
-      if (predator.getRunningBit() == false) {
-        var nbre_dirty_prey = prey.NumberOfLiteralWords;
-        var tobediscarded = Math.min(nbre_dirty_prey, predatorrl);
-        predator.discardFirstWords(tobediscarded);
-        prey.discardFirstWords(tobediscarded);
-        container.addStreamOfEmptyWords(false, tobediscarded);
-      } else {
-        var nbre_dirty_prey = prey.NumberOfLiteralWords;
+      var nbre_dirty_prey = prey.NumberOfLiteralWords;
+      var tobediscarded = Math.min(nbre_dirty_prey, predatorrl);
+      if (andnot ? predator.RunningBit : op(predator.RunningBit, 0) ^ op(predator.RunningBit, 1)) {
         var dw_prey = prey.dirtywordoffset + (i_is_prey ? i.dirtyWords() : j.dirtyWords());
-        var tobediscarded = (predatorrl >= nbre_dirty_prey) ? nbre_dirty_prey : predatorrl;
-        // TODO check
-        if (i_is_prey) container.addStreamOfNegatedDirtyWords(i.buffer(), dw_prey, tobediscarded);
-        else container.addStreamOfDirtyWords(j.buffer(), dw_prey, tobediscarded);
+        var data = i_is_prey ? i.rlw.array : j.rlw.array;
+        container.addStreamOfDirtyWords(data, dw_prey, tobediscarded, andnot && i_is_prey);
         predator.discardFirstWords(tobediscarded);
         prey.discardFirstWords(tobediscarded);
+      } else {
+        predator.discardFirstWords(tobediscarded);
+        prey.discardFirstWords(tobediscarded);
+        container.addStreamOfEmptyWords(predator.RunningBit, tobediscarded);
       }
     }
     // all that is left to do now is to AND the dirty words
     var nbre_dirty_prey = prey.NumberOfLiteralWords;
     if (nbre_dirty_prey > 0) {
-      var i0 = j,
-          j0 = i,
-          ip = prey,
-          jp = predator;
+      var ip = predator,
+          jp = prey;
       if (i_is_prey) {
-        i0 = i;
-        j0 = j;
-        ip = predator;
-        jp = prey;
+        ip = prey;
+        jp = predator;
       }
       for (var k = 0; k < nbre_dirty_prey; ++k) {
         container.add(op(
-          i0.rlw.array[ip.dirtywordoffset + i0.dirtyWords() + k],
-          j0.rlw.array[jp.dirtywordoffset + j0.dirtyWords() + k]
+          j.rlw.array[jp.dirtywordoffset + j.dirtyWords() + k],
+          i.rlw.array[ip.dirtywordoffset + i.dirtyWords() + k]
         ));
       }
       predator.discardFirstWords(nbre_dirty_prey);
@@ -190,14 +202,14 @@ function operation0(a, container, op) {
         rlwi = null;
         break;
       }
-      rlwi.reset(i.next());
-      rlwi.setRunningBit(op(1, rlwi.getRunningBit()));
+      rlwi.resetRLW(i.next());
+      if (andnot) rlwi.RunningBit = !rlwi.RunningBit;
     } else {
       if (!j.hasNext()) {
         rlwj = null;
         break;
       }
-      rlwj.reset(j.next());
+      rlwj.resetRLW(j.next());
     }
   }
   if (rlwi != null) dischargeAsEmpty(rlwi, i, container);
@@ -205,10 +217,25 @@ function operation0(a, container, op) {
   container.sizeinbits = Math.max(this.sizeinbits, a.sizeinbits);
 }
 
+function negate(data, start, n) {
+  for (var i = start; i < start + n; i++) data[i] = ~data[i];
+}
+
 function dischargeAsEmpty(initialWord, iterator, container) {
   var runningLengthWord = initialWord;
   for (;;) {
     container.addStreamOfEmptyWords(false, runningLengthWord.RunningLength + runningLengthWord.NumberOfLiteralWords);
+    if (!iterator.hasNext()) break;
+    runningLengthWord = new BufferedRLW(iterator.next());
+  }
+}
+
+function discharge(initialWord, iterator, container) {
+  var runningLengthWord = initialWord;
+  for (;;) {
+    var runningLength = runningLengthWord.RunningLength;
+    container.addStreamOfEmptyWords(runningLengthWord.RunningBit, runningLength);
+    container.addStreamOfDirtyWords(iterator.rlw.array, iterator.dirtyWords() + runningLengthWord.dirtywordoffset, runningLengthWord.NumberOfLiteralWords);
     if (!iterator.hasNext()) break;
     runningLengthWord = new BufferedRLW(iterator.next());
   }
@@ -252,12 +279,43 @@ function bitsetString(callback) {
 
 function push_back(bitset, data) {
   if (bitset.actualsizeinwords == bitset.buffer.length) {
-    var oldbuffer = bitset.buffer;
-    bitset.buffer = intArray(oldbuffer.length << 1);
-    bitset.buffer.set(oldbuffer);
+    var old = bitset.buffer;
+    bitset.buffer = intArray(old.length << 1);
+    bitset.buffer.set(old);
     bitset.rlw.array = bitset.buffer;
   }
   bitset.buffer[bitset.actualsizeinwords++] = data;
+}
+
+function push_back_many(data, start, number, negate) {
+  while (this.actualsizeinwords + number >= this.buffer.length) {
+    var old = this.buffer;
+    this.buffer = intArray(old.length << 1);
+    this.buffer.set(old);
+    this.rlw.array = this.buffer;
+  }
+  this.buffer.set(data.subarray(start, start + number), this.actualsizeinwords);
+  if (negate) {
+    for (var i = this.actualsizeinwords; i < this.actualsizeinwords + number; i++) {
+      this.buffer[i] = ~this.buffer[i];
+    }
+  }
+  this.actualsizeinwords += number;
+}
+
+function addEmptyWord(v) {
+  var noliteralword = this.rlw.getNumberOfLiteralWords() == 0;
+  var runlen = this.rlw.getRunningLength();
+  if (noliteralword && runlen == 0) this.rlw.setRunningBit(v);
+  if (noliteralword && this.rlw.getRunningBit() == v && runlen < largestrunninglengthcount) {
+    this.rlw.setRunningLength(runlen + 1);
+    return 0;
+  }
+  push_back(this, 0);
+  this.rlw.position = this.actualsizeinwords - 1;
+  this.rlw.setRunningBit(v);
+  this.rlw.setRunningLength(1);
+  return 1;
 }
 
 function addLiteralWord(bitset, newdata) {
@@ -420,6 +478,10 @@ RLW.prototype.size = function() {
 
 function BufferedRLW(rlw) {
   this.reset(rlw.array[rlw.position]);
+}
+
+BufferedRLW.prototype.resetRLW = function(rlw) {
+  return this.reset(rlw.array[rlw.position]);
 }
 
 BufferedRLW.prototype.reset = function(a) {

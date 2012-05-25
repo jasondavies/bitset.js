@@ -22,82 +22,43 @@ suite.addBatch({
       });
       assert.equal(count, data.length);
     },
-    "or": function(b) {
-      var a = new BitSet;
-      a.set(1);
-      a.set(2);
-      a.set(3);
-      var b = new BitSet;
-      b.set(3);
-      b.set(4);
-      b.set(5);
-      var c = a.or(b);
-      var expected = [1, 2, 3, 4, 5];
-      var count = 0;
-      c.read(function(d, i) {
-        assert.equal(d, expected[i]);
-        count++;
-      });
-      assert.equal(count, expected.length);
-    },
-    "xor": function(b) {
-      var a = new BitSet;
-      a.set(1);
-      a.set(2);
-      a.set(3);
-      var b = new BitSet;
-      b.set(3);
-      b.set(4);
-      b.set(5);
-      var c = a.xor(b);
-      var expected = [1, 2, 4, 5];
-      var count = 0;
-      c.read(function(d, i) {
-        assert.equal(d, expected[i]);
-        count++;
-      });
-      assert.equal(count, expected.length);
-    },
-    "and": function(b) {
-      var a = new BitSet;
-      a.set(1);
-      a.set(2);
-      a.set(3);
-      var b = new BitSet;
-      b.set(3);
-      b.set(4);
-      b.set(5);
-      var c = a.and(b);
-      var expected = [3];
-      var count = 0;
-      c.read(function(d, i) {
-        assert.equal(d, expected[i]);
-        count++;
-      });
-      assert.equal(count, expected.length);
-    },
-    "andNot": function(b) {
-      var a = new BitSet;
-      a.set(1);
-      a.set(2);
-      a.set(3);
-      var b = new BitSet;
-      b.set(3);
-      b.set(4);
-      b.set(5);
-      var c = a.andNot(b);
-      var expected = [1, 2];
-      var count = 0;
-      c.read(function(d, i) {
-        assert.equal(d, expected[i]);
-        count++;
-      });
-      assert.equal(count, expected.length);
-    }
+    "operations": operations([1, 2, 3, 100, 999, 1000, 2012], [3, 4, 5, 200, 999, 2012], {
+      "or": [1, 2, 3, 4, 5, 100, 200, 999, 1000, 2012],
+      "and": [3, 999, 2012],
+      "xor": [1, 2, 4, 5, 100, 200, 1000],
+      "andNot": [1, 2, 100, 1000]
+    })
   }
 });
 
 suite.export(module);
+
+function operations(a, b, expected) {
+  var ba = new BitSet,
+      bb = new BitSet,
+      tests = {};
+  a.forEach(function(d) {
+    ba.set(d);
+  });
+  b.forEach(function(d) {
+    bb.set(d);
+  });
+  for (var op in expected) {
+    tests[op] = (function(op) {
+      var e = expected[op];
+      return function() {
+        var c = ba[op](bb),
+            count = 0;
+        c.read(function(d, i) {
+          assert.equal(d, e[i]);
+          count++;
+        });
+        assert.equal(count, e.length);
+      };
+    })(op);
+  }
+  return tests;
+}
 
 function range(n) {
   var a = [], i = -1;
