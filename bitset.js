@@ -152,7 +152,7 @@ function operation0(a, container, op) {
       // we have a stream of 1x11
       var predatorrl = predator.RunningLength;
       var preyrl = prey.RunningLength;
-      var tobediscarded = predatorrl >= preyrl ? preyrl : predatorrl;
+      var tobediscarded = Math.min(preyrl, predatorrl);
       container.addStreamOfEmptyWords(predator.RunningBit, tobediscarded);
       var dw_predator = predator.dirtywordoffset + (i_is_prey ? j.dirtyWords() : i.dirtyWords());
       var data = i_is_prey ? j.rlw.array : i.rlw.array;
@@ -212,8 +212,8 @@ function operation0(a, container, op) {
       rlwj.resetRLW(j.next());
     }
   }
-  if (rlwi != null) dischargeAsEmpty(rlwi, i, container);
-  if (rlwj != null) discharge(rlwj, j, container);
+  if (rlwi != null) (op(0, 1) ? discharge : dischargeAsEmpty)(rlwi, i, container);
+  if (rlwj != null) (op(1, 0) ? discharge : dischargeAsEmpty)(rlwj, j, container);
   container.sizeinbits = Math.max(this.sizeinbits, a.sizeinbits);
 }
 
