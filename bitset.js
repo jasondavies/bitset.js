@@ -33,35 +33,27 @@ function BitSet(n) {
 BitSet.prototype.set = function(i) {
   var s = this.sizeinbits;
   if (i < s) return false;
-  var sameWord = false;
-  if (s & 0x1f) {
-    var possibleSizeInBits = (s >> 5 << 5) + 32;
-    if (possibleSizeInBits < i + 1) this.sizeinbits = possibleSizeInBits;
-    else sameWord = true;
-  }
-  this.addStreamOfEmptyWords(false, (i >> 5) - (this.sizeinbits >> 5));
-  var bittoflip = i - (this.sizeinbits >> 5 << 5);
-  // next, we set the bit
-  if (this.rlw.getNumberOfLiteralWords() == 0 || ((this.sizeinbits - 1) >> 5 < i >> 5)) {
-    var newdata = 1 << bittoflip;
-    addLiteralWord(this, newdata);
-    if (sameWord && !this.rlw.getRunningBit() && this.rlw.getRunningLength() > 0) {
-      // the previous literal word is replacing the last running word
-      this.rlw.setRunningLength(this.rlw.getRunningLength() - 1);
-    }
-  } else {
-    var a = this.actualsizeinwords - 1;
-    this.buffer[a] |= 1 << bittoflip;
-    // check if we just completed a stream of 1s
-    if (this.buffer[a] == ~0) {
-      // we remove the last dirty word
-      this.buffer[this.actualsizeinwords = a] = 0;
-      this.rlw.setNumberOfLiteralWords(this.rlw.getNumberOfLiteralWords() - 1);
-      // next we add one clean word
-      addEmptyWord.call(this, true);
-    }
-  }
+  // distance in words:
+  var dist = ((i + WORDINBITS) >> 5) - ((s + WORDINBITS - 1) >> 5);
   this.sizeinbits = i + 1;
+  if (dist > 0) { // easy
+    this.addStreamOfEmptyWords(false, dist - 1);
+    addLiteralWord.call(this, 1 << (i & 0x1f));
+    return true;
+  }
+  if (this.rlw.getNumberOfLiteralWords() == 0) {
+    this.rlw.setRunningLength(this.rlw.getRunningLength() - 1);
+    addLiteralWord.call(this, 1 << (i & 0x1f));
+    return true;
+  }
+  this.buffer[this.actualsizeinwords - 1] |= 1 << (i & 0x1f);
+  if (this.buffer[this.actualsizeinwords - 1] == ~0) {
+    this.buffer[this.actualsizeinwords - 1] = 0;
+    --this.actualsizeinwords;
+    this.rlw.setNumberOfLiteralWords(this.rlw.getNumberOfLiteralWords() - 1);
+    // next we add one clean word
+    addEmptyWord.call(this, true);
+  }
   return true;
 };
 
@@ -69,33 +61,34 @@ BitSet.prototype.add = function(d, significantBits) {
   this.sizeinbits += significantBits || WORDINBITS;
   if (d == 0) return addEmptyWord.call(this, false);
   if (d == ~0) return addEmptyWord.call(this, true);
-  return addLiteralWord(this, d);
+  return addLiteralWord.call(this, d);
 };
 
 BitSet.prototype.addStreamOfEmptyWords = function(v, number) {
-  if (number == 0) return 0;
-  var noliteralword = this.rlw.getNumberOfLiteralWords() == 0;
-  var runlen = this.rlw.getRunningLength();
-  if (noliteralword && runlen == 0) this.rlw.setRunningBit(v);
-  var wordsadded = 0;
-  if (noliteralword && this.rlw.getRunningBit() == v && runlen < largestrunninglengthcount) {
-    var whatwecanadd = number < largestrunninglengthcount - runlen ? number
-        : largestrunninglengthcount - runlen;
-    this.rlw.setRunningLength(runlen + whatwecanadd);
-    this.sizeinbits += whatwecanadd << 5;
-    if (number - whatwecanadd > 0) wordsadded += this.addStreamOfEmptyWords(v, number - whatwecanadd);
-  } else {
-    push_back(this, 0);
-    ++wordsadded;
-    this.rlw.position = this.actualsizeinwords - 1;
-    var whatwecanadd = number < largestrunninglengthcount ? number
-        : largestrunninglengthcount;
+  if (this.rlw.getRunningBit() != v && this.rlw.size() == 0) {
     this.rlw.setRunningBit(v);
-    this.rlw.setRunningLength(whatwecanadd);
-    this.sizeinbits += whatwecanadd << 5;
-    if (number - whatwecanadd > 0) wordsadded += this.addStreamOfEmptyWords(v, number - whatwecanadd);
+  } else if (this.rlw.getNumberOfLiteralWords() != 0 || this.rlw.getRunningBit() != v) {
+    push_back(this, 0);
+    this.rlw.position = this.actualsizeinwords - 1;
+    if (v) this.rlw.setRunningBit(v);
   }
-  return wordsadded;
+  var runlen = this.rlw.getRunningLength();
+  var whatwecanadd = Math.min(number, largestrunninglengthcount - runlen);
+  this.rlw.setRunningLength(runlen + whatwecanadd);
+  number -= whatwecanadd;
+  while (number >= largestrunninglengthcount) {
+    push_back(this, 0);
+    this.rlw.position = this.actualsizeinwords - 1;
+    if (v) this.rlw.setRunningBit(v);
+    this.rlw.setRunningLength(largestrunninglengthcount);
+    number -= largestrunninglengthcount;
+  }
+  if (number > 0) {
+    push_back(this, 0);
+    this.rlw.position = this.actualsizeinwords - 1;
+    if (v) this.rlw.setRunningBit(v);
+    this.rlw.setRunningLength(number);
+  }
 };
 
 BitSet.prototype.addStreamOfDirtyWords = function(data, start, number, negate) {
@@ -317,17 +310,17 @@ function addEmptyWord(v) {
   return 1;
 }
 
-function addLiteralWord(bitset, newdata) {
-  var numbersofar = bitset.rlw.getNumberOfLiteralWords();
+function addLiteralWord(newdata) {
+  var numbersofar = this.rlw.getNumberOfLiteralWords();
   if (numbersofar >= largestliteralcount) {
-    push_back(bitset, 0);
-    bitset.rlw.position = bitset.actualsizeinwords - 1;
-    bitset.rlw.setNumberOfLiteralWords(1);
-    push_back(bitset, newdata);
+    push_back(this, 0);
+    this.rlw.position = this.actualsizeinwords - 1;
+    this.rlw.setNumberOfLiteralWords(1);
+    push_back(this, newdata);
     return 2;
   }
-  bitset.rlw.setNumberOfLiteralWords(numbersofar + 1);
-  push_back(bitset, newdata);
+  this.rlw.setNumberOfLiteralWords(numbersofar + 1);
+  push_back(this, newdata);
   return 1;
 }
 
