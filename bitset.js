@@ -66,8 +66,7 @@ BitSet.prototype.set = function(i) {
 };
 
 BitSet.prototype.add = function(d, significantBits) {
-  if (arguments.length < 2) significantBits = WORDINBITS;
-  this.sizeinbits += significantBits;
+  this.sizeinbits += significantBits || WORDINBITS;
   if (d == 0) return addEmptyWord.call(this, false);
   if (d == ~0) return addEmptyWord.call(this, true);
   return addLiteralWord(this, d);
@@ -148,7 +147,7 @@ function operation0(a, container, op) {
     var prey = i_is_prey ? rlwi : rlwj;
     var predator = i_is_prey ? rlwj : rlwi;
 
-    if (andnot ? prey.RunningBit : op(0, prey.RunningBit, 0) ^ op(1, prey.RunningBit, 1)) { // | op(prey.RunningBit, 1)) {
+    if (andnot ? prey.RunningBit : op(0, prey.RunningBit, 0) ^ op(1, prey.RunningBit, 1)) {
       // we have a stream of 1x11
       var predatorrl = predator.RunningLength;
       var preyrl = prey.RunningLength;
@@ -421,7 +420,7 @@ Iterator.prototype.dirtyWords = function() {
 };
 
 function intArray(n) {
-  return new Uint32Array(n);
+  return new Int32Array(n);
 }
 
 function trailingZeroes(x) {
