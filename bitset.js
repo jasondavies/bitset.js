@@ -65,29 +65,30 @@ BitSet.prototype.add = function(d, significantBits) {
 };
 
 BitSet.prototype.addStreamOfEmptyWords = function(v, number) {
-  if (this.rlw.getRunningBit() != v && this.rlw.size() == 0) {
-    this.rlw.setRunningBit(v);
-  } else if (this.rlw.getNumberOfLiteralWords() != 0 || this.rlw.getRunningBit() != v) {
+  var rlw = this.rlw;
+  if (rlw.getRunningBit() != v && rlw.size() == 0) {
+    rlw.setRunningBit(v);
+  } else if (rlw.getNumberOfLiteralWords() != 0 || rlw.getRunningBit() != v) {
     push_back(this, 0);
-    this.rlw.position = this.actualsizeinwords - 1;
-    if (v) this.rlw.setRunningBit(v);
+    rlw.position = this.actualsizeinwords - 1;
+    if (v) rlw.setRunningBit(v);
   }
-  var runlen = this.rlw.getRunningLength();
+  var runlen = rlw.getRunningLength();
   var whatwecanadd = Math.min(number, largestrunninglengthcount - runlen);
-  this.rlw.setRunningLength(runlen + whatwecanadd);
+  rlw.setRunningLength(runlen + whatwecanadd);
   number -= whatwecanadd;
   while (number >= largestrunninglengthcount) {
     push_back(this, 0);
-    this.rlw.position = this.actualsizeinwords - 1;
-    if (v) this.rlw.setRunningBit(v);
-    this.rlw.setRunningLength(largestrunninglengthcount);
+    rlw.position = this.actualsizeinwords - 1;
+    if (v) rlw.setRunningBit(v);
+    rlw.setRunningLength(largestrunninglengthcount);
     number -= largestrunninglengthcount;
   }
   if (number > 0) {
     push_back(this, 0);
-    this.rlw.position = this.actualsizeinwords - 1;
-    if (v) this.rlw.setRunningBit(v);
-    this.rlw.setRunningLength(number);
+    rlw.position = this.actualsizeinwords - 1;
+    if (v) rlw.setRunningBit(v);
+    rlw.setRunningLength(number);
   }
 };
 
@@ -140,7 +141,7 @@ function operation0(a, container, op) {
     var prey = i_is_prey ? rlwi : rlwj;
     var predator = i_is_prey ? rlwj : rlwi;
 
-    if (andnot ? prey.RunningBit : op(0, prey.RunningBit, 0) ^ op(1, prey.RunningBit, 1)) {
+    if (andnot ? prey.RunningBit : op(0, prey.RunningBit) ^ op(1, prey.RunningBit)) {
       // we have a stream of 1x11
       var predatorrl = predator.RunningLength;
       var preyrl = prey.RunningLength;
@@ -328,7 +329,7 @@ BitSet.prototype.read = function(f) {
   var i = new Iterator(this.buffer, this.actualsizeinwords);
   var pos = 0;
   var localrlw = null;
-  var initcapacity = 512;
+  var initcapacity = 256;
   var localbuffer = intArray(initcapacity);
   var localbuffersize = 0;
   var bufferpos = 0;
