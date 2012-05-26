@@ -19,7 +19,7 @@ var largestliteralcount = (1 << literalbits) - 1;
 var largestrunninglengthcount = (1 << runninglengthbits) - 1;
 var shiftedlargestrunninglengthcount = largestrunninglengthcount << 1;
 var notshiftedlargestrunninglengthcount = ~shiftedlargestrunninglengthcount;
-var runninglengthplusrunningbit = (1 << (runninglengthbits + 1)) - 1;
+var runninglengthplusrunningbit = (1 << runninglengthbits + 1) - 1;
 var notrunninglengthplusrunningbit = ~runninglengthplusrunningbit;
 
 function BitSet(n) {
@@ -34,7 +34,7 @@ BitSet.prototype.set = function(i) {
   var s = this.sizeinbits;
   if (i < s) return false;
   // distance in words:
-  var dist = ((i + WORDINBITS) >> 5) - ((s + WORDINBITS - 1) >> 5);
+  var dist = (i + WORDINBITS >> 5) - (s + WORDINBITS - 1 >> 5);
   this.sizeinbits = i + 1;
   if (dist > 0) { // easy
     this.addStreamOfEmptyWords(false, dist - 1);
@@ -438,12 +438,12 @@ function RLW(array, position) {
 }
 
 RLW.prototype.getNumberOfLiteralWords = function() {
-  return this.array[this.position] >>> (1 + runninglengthbits);
+  return this.array[this.position] >>> 1 + runninglengthbits;
 };
 
 RLW.prototype.setNumberOfLiteralWords = function(n) {
   this.array[this.position] |= notrunninglengthplusrunningbit;
-  this.array[this.position] &= (n << (runninglengthbits + 1)) | runninglengthplusrunningbit;
+  this.array[this.position] &= (n << runninglengthbits + 1) | runninglengthplusrunningbit;
 };
 
 RLW.prototype.setRunningBit = function(b) {
@@ -452,7 +452,7 @@ RLW.prototype.setRunningBit = function(b) {
 };
 
 RLW.prototype.getRunningBit = function() {
-  return (this.array[this.position] & 1) != 0;
+  return this.array[this.position] & 1 != 0;
 };
 
 RLW.prototype.getRunningLength = function() {
