@@ -456,10 +456,11 @@ function ones(x) {
   return x & 0x0000003f;
 }
 
+// http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
 function bits(v) {
-  v = v - ((v >> 1) & 0x55555555);                    // reuse input as temporary
-  v = (v & 0x33333333) + ((v >> 2) & 0x33333333);     // temp
-  return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24; // count
+  v -= (v >> 1) & 0x55555555;
+  v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
+  return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
 }
 
 function RLW(array, position) {
@@ -530,7 +531,7 @@ BufferedRLW.prototype.size = function() {
 function BitCounter() { this.n = 0; }
 BitCounter.prototype.add = function(d) { this.n += bits(d); };
 BitCounter.prototype.addStreamOfEmptyWords = function(v, n) {
-  if (v) this.n += n * WORDINBITS;
+  if (v) this.n += n << 5;
 };
 BitCounter.prototype.addStreamOfDirtyWords = function(d, i, n) {
   n += i;
