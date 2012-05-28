@@ -107,10 +107,38 @@ BitSet.prototype.addStreamOfDirtyWords = function(data, start, number, negate) {
   }
 };
 
+BitSet.prototype.cardinality = function() {
+  var counter = 0;
+  var i = new Iterator(this.buffer, this.actualsizeinwords);
+  while (i.hasNext()) {
+    var localrlw = i.next();
+    if (localrlw.getRunningBit()) {
+      counter += WORDINBITS * localrlw.getRunningLength();
+    }
+    for (var j = 0; j < localrlw.getNumberOfLiteralWords(); ++j) {
+      counter += bits(i.rlw.array[i.dirtyWords() + j]);
+    }
+  }
+  return counter;
+}
+
 BitSet.prototype.or = operation(function(a, b) { return a | b; });
 BitSet.prototype.xor = operation(function(a, b) { return a ^ b; });
 BitSet.prototype.and = operation(function(a, b) { return a & b; });
 BitSet.prototype.andNot = operation(function(a, b) { return a & ~b; });
+
+BitSet.prototype.orCardinality = cardinality(function(a, b) { return a | b; });
+BitSet.prototype.xorCardinality = cardinality(function(a, b) { return a ^ b; });
+BitSet.prototype.andCardinality = cardinality(function(a, b) { return a & b; });
+BitSet.prototype.andNotCardinality = cardinality(function(a, b) { return a & ~b; });
+
+function cardinality(op) {
+  return function(a) {
+    var container = new BitCounter;
+    operation0.call(this, a, container, op);
+    return container.n;
+  };
+}
 
 function operation(op) {
   return function(a) {
@@ -428,6 +456,12 @@ function ones(x) {
   return x & 0x0000003f;
 }
 
+function bits(v) {
+  v = v - ((v >> 1) & 0x55555555);                    // reuse input as temporary
+  v = (v & 0x33333333) + ((v >> 2) & 0x33333333);     // temp
+  return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24; // count
+}
+
 function RLW(array, position) {
   this.array = array;
   this.position = position;
@@ -491,6 +525,16 @@ BufferedRLW.prototype.discardFirstWords = function(x) {
 
 BufferedRLW.prototype.size = function() {
   return this.RunningLength + this.NumberOfLiteralWords;
+};
+
+function BitCounter() { this.n = 0; }
+BitCounter.prototype.add = function(d) { this.n += bits(d); };
+BitCounter.prototype.addStreamOfEmptyWords = function(v, n) {
+  if (v) this.n += n * WORDINBITS;
+};
+BitCounter.prototype.addStreamOfDirtyWords = function(d, i, n) {
+  n += i;
+  while (i < n) this.n += bits(d[i++]);
 };
 
 })(this);

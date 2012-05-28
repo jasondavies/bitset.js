@@ -60,6 +60,8 @@ function operations(a, b, expected) {
           count++;
         });
         assert.equal(count, e.length);
+        assert.equal(c.cardinality(), e.length);
+        assert.equal(ba[op + "Cardinality"](bb), e.length);
       };
     })(op);
   }
