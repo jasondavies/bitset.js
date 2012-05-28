@@ -65,10 +65,11 @@ BitSet.prototype.add = function(d, significantBits) {
 };
 
 BitSet.prototype.addStreamOfEmptyWords = function(v, number) {
-  var rlw = this.rlw;
-  if (rlw.getRunningBit() != v && rlw.size() == 0) {
+  var rlw = this.rlw,
+      rb = rlw.getRunningBit();
+  if (rb != v && rlw.size() == 0) {
     rlw.setRunningBit(v);
-  } else if (rlw.getNumberOfLiteralWords() != 0 || rlw.getRunningBit() != v) {
+  } else if (rlw.getNumberOfLiteralWords() != 0 || rb != v) {
     push_back(this, 0);
     rlw.position = this.actualsizeinwords - 1;
     if (v) rlw.setRunningBit(v);
@@ -112,11 +113,9 @@ BitSet.prototype.cardinality = function() {
   var i = new Iterator(this.buffer, this.actualsizeinwords);
   while (i.hasNext()) {
     var localrlw = i.next();
-    if (localrlw.getRunningBit()) {
-      counter += WORDINBITS * localrlw.getRunningLength();
-    }
-    for (var j = 0; j < localrlw.getNumberOfLiteralWords(); ++j) {
-      counter += bits(i.rlw.array[i.dirtyWords() + j]);
+    if (localrlw.getRunningBit()) counter += localrlw.getRunningLength() << 5;
+    for (var a = i.rlw.array, j = i.dirtyWords(), n = j + localrlw.getNumberOfLiteralWords(); j < n; ++j) {
+      counter += bits(a[j]);
     }
   }
   return counter;
@@ -240,11 +239,11 @@ function negate(data, start, n) {
 }
 
 function dischargeAsEmpty(initialWord, iterator, container) {
-  var runningLengthWord = initialWord;
+  var rlw = initialWord;
   for (;;) {
-    container.addStreamOfEmptyWords(false, runningLengthWord.RunningLength + runningLengthWord.NumberOfLiteralWords);
+    container.addStreamOfEmptyWords(false, rlw.RunningLength + rlw.NumberOfLiteralWords);
     if (!iterator.hasNext()) break;
-    runningLengthWord = new BufferedRLW(iterator.next());
+    rlw = new BufferedRLW(iterator.next());
   }
 }
 
