@@ -206,11 +206,10 @@ function operation0(a, container, op) {
         ip = prey;
         jp = predator;
       }
+      var joff = jp.dirtywordoffset + j.dirtyWords(),
+          ioff = ip.dirtywordoffset + i.dirtyWords();
       for (var k = 0; k < nbre_dirty_prey; ++k) {
-        container.add(op(
-          j.rlw.array[jp.dirtywordoffset + j.dirtyWords() + k],
-          i.rlw.array[ip.dirtywordoffset + i.dirtyWords() + k]
-        ));
+        container.add(op(j.rlw.array[joff + k], i.rlw.array[ioff + k]));
       }
       predator.discardFirstWords(nbre_dirty_prey);
     }
