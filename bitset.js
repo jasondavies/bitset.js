@@ -233,6 +233,98 @@ function operation0(a, container, op) {
   container.sizeinbits = Math.max(this.sizeinbits, a.sizeinbits);
 }
 
+BitSet.prototype.andGroupCardinality = function(bitmaps) {
+  var a = this,
+      n = bitmaps.length,
+      ab = a.buffer,
+      an = a.actualsizeinwords;
+      buffers = bitmaps.map(function(d) { return d.buffer; }),
+      indexes = zeroArray(n),
+      positions = zeroArray(n),
+      counts = zeroArray(n),
+      ap = 0,
+      ax = 0;
+  while (ap < an) {
+    var aw = ab[ap],
+        al = ewahRunningLength(aw),
+        ad = ewahDirtyLength(aw);
+    ap++;
+    for (var i = 0; i < n; i++) {
+      var x = indexes[i], // index of running word
+          dx = ax - x, // current offset
+          pn = bitmaps[i].actualsizeinwords,
+          adx = 0, // amount of a that we have "used" so far
+          b = buffers[i],
+          p = positions[i]; // position in buffer of running word
+      do {
+        var w = b[p],
+            l = ewahRunningLength(w),
+            d = ewahDirtyLength(w),
+            distance = 0;
+        // a clean, b clean
+        if (adx < al && dx < l) {
+          distance = Math.min(al - adx, l - dx);
+          counts[i] += (w & aw & 1) * distance << 5;
+          adx += distance;
+          dx += distance;
+        }
+        if (adx < al && dx >= l) {
+          // a clean, b dirty
+          distance = Math.min(al - adx, l + d - dx);
+          if (aw & 1) {
+            for (var j = 0; j < distance; j++) {
+              counts[i] += bits(b[p + 1 + dx - l + d + j]);
+            }
+          }
+          adx += distance;
+          dx += distance;
+          if (dx === l + d) {
+            x += l + d;
+            p += 1 + d;
+            dx = 0;
+          }
+        } else if (adx >= al && dx < l) {
+          // a dirty, b clean
+          distance = Math.min(al + ad - adx, l - dx);
+          if (w & 1) {
+            for (var j = 0; j < distance; j++) {
+              counts[i] += bits(ab[ap + adx - al + j]);
+            }
+          }
+          adx += distance;
+          dx += distance;
+        }
+        if (adx >= al && dx >= l) {
+          // a dirty, b dirty
+          distance = Math.min(al + ad - adx, l + d - dx);
+          for (var j = 0; j < distance; j++) {
+            counts[i] += bits(ab[ap + adx - al + j] & b[p + 1 + dx - l + j]);
+          }
+          dx += distance;
+          adx += distance;
+          if (dx === l + d) {
+            x += l + d;
+            p += 1 + d;
+            dx = 0;
+          }
+        }
+      } while (p + dx < pn & adx < al + ad);
+      indexes[i] = x;
+      positions[i] = p;
+    }
+    ap += ad;
+    ax += al + ad;
+  }
+  return counts;
+}
+
+function ewahRunningLength(d) { return d >>> 1 & 0xffff; }
+function ewahDirtyLength(d) { return d >>> 17; }
+
+function zeroArray(n) {
+  return new Int32Array(n);
+}
+
 function negate(data, start, n) {
   for (var i = start; i < start + n; i++) data[i] = ~data[i];
 }
@@ -347,70 +439,25 @@ function addLiteralWord(newdata) {
 }
 
 BitSet.prototype.read = function(f) {
-  var i = new Iterator(this.buffer, this.actualsizeinwords);
-  var pos = 0;
-  var localrlw = null;
-  var initcapacity = 256;
-  var localbuffer = intArray(initcapacity);
-  var localbuffersize = 0;
-  var bufferpos = 0;
-  var status = queryStatus();
-
-  function queryStatus() {
-    while (localbuffersize == 0) {
-      if (!loadNextRLE()) return false;
-      loadBuffer();
-    }
-    return true;
-  }
-
-  function loadNextRLE() {
-    while (i.hasNext()) {
-      localrlw = i.next();
-      return true;
-    }
-    return false;
-  }
-
-  function add(val) {
-    ++localbuffersize;
-    if (localbuffersize > localbuffer.length) {
-      var oldbuffer = localbuffer;
-      localbuffer = intArray(localbuffer.length << 1);
-      localbuffer.set(oldbuffer);
-    }
-    localbuffer[localbuffersize - 1] = val;
-  }
-
-  function loadBuffer() {
-    bufferpos = 0;
-    localbuffersize = 0;
-    if (localrlw.getRunningBit()) {
-      for (var j = 0; j < localrlw.getRunningLength(); ++j) {
-        for (var c = 0; c < WORDINBITS; ++c) add(pos++);
+  var buffer = this.buffer,
+      n = this.actualsizeinwords;
+  for (var i = -1, x = 0, count = 0; i < n;) {
+    var w = buffer[++i],
+        l = ewahRunningLength(w),
+        d = ewahDirtyLength(w);
+    if (w & 1) {
+      for (var j = 0; j < l; j++) {
+        for (var k = 0; k < 32; k++) f(x++, count++);
       }
-    } else {
-      pos += localrlw.getRunningLength() << 5;
-    }
-    for (var j = 0; j < localrlw.getNumberOfLiteralWords(); ++j) {
-      var data = i.rlw.array[i.dirtyWords() + j];
-      while (data != 0) {
-        var ntz = trailingZeroes(data);
-        data ^= (1 << ntz);
-        add(ntz + pos) ;
+    } else x += l;
+    for (var j = 0; j < d; j++, x += 32) {
+      w = buffer[++i];
+      while (w !== 0) {
+        var ntz = trailingZeroes(w);
+        w ^= 1 << ntz;
+        f(x + ntz, count++) ;
       }
-      pos += WORDINBITS;
     }
-  }
-
-  var count = 0;
-  while (status) {
-    var answer = localbuffer[bufferpos++];
-    if (localbuffersize == bufferpos) {
-      localbuffersize = 0;
-      status = queryStatus();
-    }
-    f(answer, count++);
   }
 };
 
@@ -451,8 +498,23 @@ function ones(x) {
   x = ((x >> 4) + x) & 0x0f0f0f0f;
   x += x >> 8;
   x += x >> 16;
-  return x & 0x0000003f;
+  return x & 0x3f;
 }
+
+/*
+var lut = new Int8Array(1 << 16);
+
+for (var i = 0; i < 1 << 16; i++) {
+  var count = 0;
+  // count bits using Wegner/Kernigan
+  for (var j = i; j; j &= j - 1) count++;
+  lut[i] = count;
+}
+
+function newbits(x) {
+  return lut[x & 0xffff] + lut[x >>> 16];
+}
+*/
 
 // http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
 function bits(v) {
