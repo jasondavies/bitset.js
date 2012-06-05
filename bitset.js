@@ -452,10 +452,10 @@ BitSet.prototype.read = function(f) {
     } else x += l << 5;
     for (var j = 0; j < d; j++, x += 32) {
       w = buffer[i++];
-      while (w !== 0) {
-        var ntz = trailingZeroes(w);
-        w ^= 1 << ntz;
-        f(x + ntz, count++);
+      while (w) {
+        var lsb = w & -w;
+        w ^= lsb;
+        f(x + bits(lsb - 1), count++);
       }
     }
   }
@@ -484,37 +484,6 @@ Iterator.prototype.dirtyWords = function() {
 function intArray(n) {
   return new Int32Array(n);
 }
-
-function trailingZeroes(x) {
-  return ones((x & -x) - 1);
-}
-
-function ones(x) {
-  // 32-bit recursive reduction using SWAR...
-  // but first step is mapping 2-bit values
-  // into sum of 2 1-bit values in sneaky way
-  x -= (x >> 1) & 0x55555555;
-  x = ((x >> 2) & 0x33333333) + (x & 0x33333333);
-  x = ((x >> 4) + x) & 0x0f0f0f0f;
-  x += x >> 8;
-  x += x >> 16;
-  return x & 0x3f;
-}
-
-/*
-var lut = new Int8Array(1 << 16);
-
-for (var i = 0; i < 1 << 16; i++) {
-  var count = 0;
-  // count bits using Wegner/Kernigan
-  for (var j = i; j; j &= j - 1) count++;
-  lut[i] = count;
-}
-
-function newbits(x) {
-  return lut[x & 0xffff] + lut[x >>> 16];
-}
-*/
 
 // http://graphics.stanford.edu/~seander/bithacks.html#CountBitsSetParallel
 function bits(v) {
