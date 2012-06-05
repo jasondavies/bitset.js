@@ -441,21 +441,21 @@ function addLiteralWord(newdata) {
 BitSet.prototype.read = function(f) {
   var buffer = this.buffer,
       n = this.actualsizeinwords;
-  for (var i = -1, x = 0, count = 0; i < n;) {
-    var w = buffer[++i],
+  for (var i = 0, x = 0, count = 0; i < n;) {
+    var w = buffer[i++],
         l = ewahRunningLength(w),
         d = ewahDirtyLength(w);
     if (w & 1) {
       for (var j = 0; j < l; j++) {
         for (var k = 0; k < 32; k++) f(x++, count++);
       }
-    } else x += l;
+    } else x += l << 5;
     for (var j = 0; j < d; j++, x += 32) {
-      w = buffer[++i];
+      w = buffer[i++];
       while (w !== 0) {
         var ntz = trailingZeroes(w);
         w ^= 1 << ntz;
-        f(x + ntz, count++) ;
+        f(x + ntz, count++);
       }
     }
   }
