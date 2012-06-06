@@ -450,8 +450,8 @@ BitSet.prototype.read = function(f) {
         for (var k = 0; k < 32; k++) f(x++, count++);
       }
     } else x += l << 5;
-    for (var j = 0; j < d; j++, x += 32) {
-      w = buffer[i++];
+    for (var limit = i + d; i < limit; i++, x += 32) {
+      w = buffer[i];
       while (w) {
         var lsb = w & -w;
         w ^= lsb;
