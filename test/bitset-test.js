@@ -8,10 +8,10 @@ var suite = vows.describe("bitset");
 suite.addBatch({
   "bitset": {
     topic: function() {
-      return new BitSet(100);
+      return new BitSet;
     },
     "simple": function(b) {
-      var data = [2, 20, 99, 100];
+      var data = [2, 200, 299, 300, 1 << 16];
       data.forEach(function(d) {
         b.set(d);
       });
@@ -21,8 +21,55 @@ suite.addBatch({
         count++;
       });
       assert.equal(count, data.length);
-    }
+    },
+    "operations": operations([1, 2, 3, 100, 999, 1000, 2012, 2038], [3, 4, 5, 200, 999, 2012], {
+      "or": [1, 2, 3, 4, 5, 100, 200, 999, 1000, 2012, 2038],
+      "and": [3, 999, 2012],
+      "xor": [1, 2, 4, 5, 100, 200, 1000, 2038],
+      "andNot": [1, 2, 100, 1000, 2038]
+    }),
+    "more operations": operations([100, 999, 1000, 2012, 1e9], [200, 999, 2012, 1e6], {
+      "or": [100, 200, 999, 1000, 2012, 1e6, 1e9],
+      "and": [999, 2012],
+      "xor": [100, 200, 1000, 1e6, 1e9],
+      "andNot": [100, 1000, 1e9]
+    })
   }
 });
 
 suite.export(module);
+
+function operations(a, b, expected) {
+  var ba = new BitSet,
+      bb = new BitSet,
+      tests = {};
+  a.forEach(function(d) {
+    ba.set(d);
+  });
+  b.forEach(function(d) {
+    bb.set(d);
+  });
+  for (var op in expected) {
+    tests[op] = (function(op) {
+      var e = expected[op];
+      return function() {
+        var c = ba[op](bb),
+            count = 0;
+        c.read(function(d, i) {
+          assert.equal(d, e[i]);
+          count++;
+        });
+        assert.equal(count, e.length);
+        assert.equal(c.cardinality(), e.length);
+        assert.equal(ba[op + "Cardinality"](bb), e.length);
+      };
+    })(op);
+  }
+  return tests;
+}
+
+function range(n) {
+  var a = [], i = -1;
+  while (++i < n) a[i] = i;
+  return a;
+}
