@@ -455,7 +455,7 @@ BitSet.prototype.read = function(f) {
       while (w) {
         var lsb = w & -w;
         w ^= lsb;
-        f(x + bits(lsb - 1), count++);
+        f(x + log2pow2(lsb), count++);
       }
     }
   }
@@ -490,6 +490,16 @@ function bits(v) {
   v -= (v >> 1) & 0x55555555;
   v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
   return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
+}
+
+// http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn
+var positions = new Uint8Array([
+  0, 1, 28, 2, 29, 14, 24, 3, 30, 22, 20, 15, 25, 17, 4, 8, 
+  31, 27, 13, 23, 21, 19, 16, 7, 26, 12, 18, 6, 11, 5, 10, 9
+]);
+// Assumes input is a power of two.
+function log2pow2(v) {
+  return positions[(v * 0x077CB531) >>> 27];
 }
 
 function RLW(array, position) {
