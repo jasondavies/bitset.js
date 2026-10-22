@@ -1,26 +1,54 @@
 {
-  "name": "bitset",
-  "version": "0.0.1",
-  "description": "Bit vectors for JavaScript.",
+  "name": "@jasondavies/bitset",
+  "version": "1.0.0",
+  "description": "Fast fixed-length bit sets for JavaScript.",
+  "license": "BSD-3-Clause",
   "keywords": [
-    "radix sort",
-    "floating point"
+    "bitset",
+    "bit set",
+    "bit vector",
+    "bitmap",
+    "set"
   ],
   "homepage": "https://github.com/jasondavies/bitset.js",
   "author": {
     "name": "Jason Davies",
-    "url": "http://www.jasondavies.com/"
+    "url": "https://www.jasondavies.com/"
   },
   "repository": {
     "type": "git",
-    "url": "http://github.com/jasondavies/bitset.js.git"
+    "url": "git+https://github.com/jasondavies/bitset.js.git"
   },
+  "type": "module",
   "main": "bitset.js",
-  "devDependencies": {
-    "vows": "0.6.x",
-    "uglify-js": "1.2.x"
+  "types": "bitset.d.ts",
+  "exports": {
+    ".": {
+      "types": "./bitset.d.ts",
+      "default": "./bitset.js"
+    }
   },
+  "files": [
+    "bitset.js",
+    "bitset.d.ts"
+  ],
   "scripts": {
-    "test": "./node_modules/vows/bin/vows"
+    "test": "node --test test/bitset-test.js",
+    "bench": "node test/bench.js",
+    "check": "tsc --noEmit --strict --module nodenext --target es2022 test/types-test.ts"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "typedfastbitset": "^0.8.0",
+    "typescript": "^7.0.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "bugs": {
+    "url": "https://github.com/jasondavies/bitset.js/issues"
   }
 }
